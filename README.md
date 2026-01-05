@@ -1,3 +1,8 @@
+[![License](https://img.shields.io/badge/License-Broadcom-green.svg)](LICENSE.md)
+[![PowerShell](https://img.shields.io/badge/PowerShell-7.2%2B-blue.svg)](https://github.com/PowerShell/PowerShell)
+[![GitHub Clones](https://img.shields.io/badge/dynamic/json?color=success&label=Clone&query=count&url=https://gist.githubusercontent.com/nathanthaler/f02ea07c5010c0c095cd9707622670b3/raw/clone.json&logo=github)](https://gist.githubusercontent.com/nathanthaler/f02ea07c5010c0c095cd9707622670b3/raw/clone.json)
+
+
 # VMware Cloud Foundation VUM Unrestrict Script
 
 Temporarily allow vCenter VMware Update Manager (VUM) to enable the transition of heterogeneous hardware to vLCM Image Management.
