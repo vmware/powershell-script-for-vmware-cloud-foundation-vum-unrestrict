@@ -143,3 +143,8 @@ vcenter02.example.com N/A              vCenter release unsupported (version 8.0)
 12. Expand `/api/cis/tasks/{tasks}/{task}`.
 13. Enter your task ID from step 9 into the task field and click "Execute".
 14. Look at `vum_operations_enabled` under results. If this key is equal to `true`, VUM has been unrestricted. If the value is `false`, please examine the payload for answers as to why not.
+
+## Support
+
+- For product issues, please open a standard Broadcom support case.
+- For bugs or enhancement requests with this script, please open a [github issue](https://github.com/vmware/powershell-script-for-vmware-cloud-foundation-vum-unrestrict/issues).
