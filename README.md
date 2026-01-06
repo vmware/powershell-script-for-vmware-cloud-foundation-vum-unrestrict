@@ -1,7 +1,7 @@
 [![License](https://img.shields.io/badge/License-Broadcom-green.svg)](LICENSE.md)
 [![PowerShell](https://img.shields.io/badge/PowerShell-7.2%2B-blue.svg)](https://github.com/PowerShell/PowerShell)
 [![GitHub Clones](https://img.shields.io/badge/dynamic/json?color=success&label=Clone&query=count&url=https://gist.githubusercontent.com/nathanthaler/f02ea07c5010c0c095cd9707622670b3/raw/clone.json&logo=github)](https://gist.githubusercontent.com/nathanthaler/f02ea07c5010c0c095cd9707622670b3/raw/clone.json)
-
+[![Changelog](https://img.shields.io/badge/Changelog-Read-blue)](CHANGELOG.md)
 
 # VMware Cloud Foundation VUM Unrestrict Script
 
@@ -29,9 +29,11 @@ The vCenter Update Manager service can be unrestricted via a Broadcom-provided P
 
 #### Client Software
 
-- VCF PowerCLI 9.0 or later
-- PowerShell 7.2 or later
-- macOS / Linux / Windows
+- [VCF.PowerCLI 9.0+](https://developer.broadcom.com/powercli)
+- [PowerShell 7.2+](https://learn.microsoft.com/en-us/powershell/scripting/install/install-powershell)
+- Compatible OS: MacOS / Linux / Windows
+
+Note: Before installing VCF.PowerCLI [uninstall VMware.PowerCLI](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/power-cli/latest/powercli/installing-vmware-vsphere-powercli/uninstall-powercli.html) to avoid conflicts between the two modules.
 
 #### User Rights
 
@@ -44,14 +46,12 @@ The vCenter Update Manager service can be unrestricted via a Broadcom-provided P
 
 #### Server Software
 
-- SDDC Manager 9.0 or later
-- vCenter 9.0 or later (for the heterogeneous clusters)
+- SDDC Manager 9.0+
+- vCenter 9.0+ (for the heterogeneous clusters)
 
 ### Download
 
-Download the PowerShell script from:
-
-<https://github.com/vmware/powershell-script-for-vmware-cloud-foundation-vum-unrestrict/>
+Link to [latest](https://github.com/vmware/powershell-script-for-vmware-cloud-foundation-vum-unrestrict/releases/latest/download/VumUnrestrict.zip) release.
 
 ### Issue Reporting
 
@@ -125,7 +125,7 @@ vcenter02.example.com N/A              vCenter release unsupported (version 8.0)
 
 #### API Server Software
 
-- vCenter 9.0 or later (for the heterogeneous clusters)
+- vCenter 9.0+ (for the heterogeneous clusters)
 
 ### Steps
 
