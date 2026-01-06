@@ -29,23 +29,103 @@ The vCenter Update Manager service can be unrestricted via a Broadcom-provided P
 
 #### Client Software
 
-- VCF PowerCLI 9.0 or later
-- PowerShell 7.2 or later
-- macOS / Linux / Windows
+<table>
+  <thead>
+    <tr>
+      <th align="left">Software Component</th>
+      <th align="left">Version/OS</th>
+      <th align="left">Implementation Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>VCF PowerCLI</strong></td>
+      <td>9.0 or later</td>
+      <td>
+        <strong>Critical:</strong>
+        <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/power-cli/latest/powercli/installing-vmware-vsphere-powercli/uninstall-powercli.html">
+          Uninstall VMware.PowerCLI
+        </a>
+        before installing VCF.PowerCLI.
+      </td>
+    </tr>
+    <tr>
+      <td><strong>PowerShell</strong></td>
+      <td>7.2 or later</td>
+      <td>Required for script execution.</td>
+    </tr>
+    <tr>
+      <td><strong>Operating System</strong></td>
+      <td>Cross-platform</td>
+      <td>macOS, Linux, and Windows supported.</td>
+    </tr>
+  </tbody>
+</table>
 
 #### User Rights
 
-- SDDC Manager: ADMIN user
+<table>
+  <thead>
+    <tr>
+      <th align="left">System</th>
+      <th align="left">Required Role/User</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>SDDC Manager</strong></td>
+      <td><code>ADMIN</code> user</td>
+    </tr>
+  </tbody>
+</table>
 
 #### Network Permissions
 
-- HTTPS access to SDDC Manager
-- HTTPS access to vCenter
+<table>
+  <thead>
+    <tr>
+      <th align="left">Target</th>
+      <th align="left">Protocol</th>
+      <th align="left">Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>SDDC Manager</strong></td>
+      <td>HTTPS (443)</td>
+      <td>Inbound API and UI access.</td>
+    </tr>
+    <tr>
+      <td><strong>vCenter</strong></td>
+      <td>HTTPS (443)</td>
+      <td>Inbound management access.</td>
+    </tr>
+  </tbody>
+</table>
 
 #### Server Software
 
-- SDDC Manager 9.0 or later
-- vCenter 9.0 or later (for the heterogeneous clusters)
+<table>
+  <thead>
+    <tr>
+      <th align="left">Server Component</th>
+      <th align="left">Minimum Version</th>
+      <th align="left">Context</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>SDDC Manager</strong></td>
+      <td>9.0 or later</td>
+      <td>Source WLD details.</td>
+    </tr>
+    <tr>
+      <td><strong>vCenter</strong></td>
+      <td>9.0 or later</td>
+      <td>Required for heterogeneous cluster support.</td>
+    </tr>
+  </tbody>
+</table>
 
 ### Download
 
