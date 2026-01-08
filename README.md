@@ -51,7 +51,7 @@ Note: Before installing VCF.PowerCLI [uninstall VMware.PowerCLI](https://techdoc
 
 #### Server Software
 
-- SDDC Manager 9.0+
+- SDDC Manager 9.0+ (for VCF mode)
 - vCenter 9.0+ (for the heterogeneous clusters)
 
 ### Download
