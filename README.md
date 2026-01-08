@@ -17,6 +17,10 @@ However, vLCM images for heterogeneous hardware-based clusters are only supporte
 
 The vCenter Update Manager service can be unrestricted via a Broadcom-provided PowerShell script or vCenter APIs, but only if one or more heterogeneous-hardware clusters are present.
 
+## Modes
+
+This script can work in VCF Mode (through SDDC Manager) and vCenter mode (no SDDC Manager).  The former detects and connects all vCenters registered to SDDC manager, while the latter connects to individual vCenters.
+
 ## Caveats
 
 - This process is only supported for true heterogeneous clusters.
@@ -37,7 +41,8 @@ Note: Before installing VCF.PowerCLI [uninstall VMware.PowerCLI](https://techdoc
 
 #### User Rights
 
-- SDDC Manager: ADMIN user
+- (for VCF Mode) SDDC Manager: ADMIN user
+- (for vCenter Mode) vCenter : ADMIN access
 
 #### Network Permissions
 
@@ -61,7 +66,13 @@ Log any issues here:
 
 ### Usage
 
-Run `VumUnrestrict.ps1`. When prompted, please enter your SDDC manager FQDN, username, and password.
+### Option 1: Choosing a mode interactively
+- Run `VumUnrestrict.ps1`. If you have a VCF deployment with SDDC Manager, enter "Y" to the prompt `Is this a VCF Deployment?` otherwise enter "N".
+- When prompted, enter the credentials for SDDC Manager or vCenter, depending on the mode.
+
+### Option 2: Choosing a mode via Parameter
+ -Run `VumUnrestrict.ps1 -Mode VCF` for VCF mode (with SDDC Manager) or `VumUnrestrict.ps1 -Mode vCenter` (for non-VCF mode without SDDC Manager)
+- When prompted, enter the credentials for SDDC Manager or vCenter, depending on the mode.
 
 ### Status Codes
 
@@ -74,10 +85,13 @@ The script will return one of four statuses:
 |Restricted|No heterogeneous hardware-clusters located|Any VUM based clusters can be transitioned to vLCM images|
 |Failed|Underlying vCenter Task failed, was blocked, or entered an unknown state|Please open a support case|
 
-### Example Output
+### Example 1: VCF Mode (with SDDC Manager)
 
-```powershell
+```Powershell
 PS> .\VumUnrestrict.ps1
+
+Is this a VCF Deployment?
+[Y] Yes  [N] No  [?] Help (default is "Y"):
 
 [INFO] Please enter your connection details at the prompt.
 
@@ -109,6 +123,56 @@ vcenter02.example.com N/A              vCenter release unsupported (version 8.0)
 [INFO] Successfully disconnected from SDDC Manager "vcenter01.example.com".
 
 [INFO] Successfully disconnected from vCenter "vcenter01.example.com".
+```
+
+### Example 2: vCenter Mode (heterogeneous cluster found)
+
+```Powershell
+
+PS> .\VumUnrestrict.ps1
+
+Is this a VCF Deployment?
+[Y] Yes  [N] No  [?] Help (default is "Y"): N
+
+[INFO] Please enter your vCenter connection details at the prompt.
+
+Enter your vCenter FQDN: vcenter01.example.com
+Enter your vCenter SSO username: administrator@vsphere.local
+Enter your vCenter SSO password: ********
+
+[INFO] Successfully connected to vCenter "vcenter01.example.com" as "administrator@vsphere.local".
+
+[INFO] Looking for heterogeneous-hardware clusters in the connected vCenter(s)...
+
+[INFO] vCenter "vcenter01.example.com" VUM unrestrict task completed in 25 seconds.
+
+Summary:
+
+vCenter                      VUM Services     Message
+-------                      ------------     -------
+vcenter01.example.com        Unrestricted     Heterogeneous-hardware clusters(s) located.
+
+[INFO] Successfully disconnected from vCenter "vcenter01.example.com".
+```
+
+### Example 3: vCenter Mode (incompatible vCenter found)
+
+```Powershell
+
+PS> .\VumUnrestrict.ps1
+
+Is this a VCF Deployment?
+[Y] Yes  [N] No  [?] Help (default is "Y"): N
+
+[INFO] Please enter your vCenter connection details at the prompt.
+
+Enter your vCenter FQDN: vcenter02.example.com
+Enter your vCenter SSO username: administrator@vsphere.local
+Enter your vCenter SSO password: ********
+
+[INFO] Disconnecting from incompatible vCenter "vcenter02.example.com".
+
+[ERROR] vCenter version 8.0 detected. Version 9.0 or later is required.
 ```
 
 ## Option 2: API (Using Developer Center)
