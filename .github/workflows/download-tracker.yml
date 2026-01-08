@@ -2,7 +2,7 @@ name: "Track Release Downloads"
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Runs every day at midnight
+    - cron: '0 */4 * * *' # Runs every four hours
   workflow_dispatch:      # Allows you to run it manually
 
 jobs:
