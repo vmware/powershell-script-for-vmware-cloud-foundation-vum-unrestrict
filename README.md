@@ -1,6 +1,7 @@
 [![License](https://img.shields.io/badge/License-Broadcom-green.svg)](LICENSE.md)
 [![PowerShell](https://img.shields.io/badge/PowerShell-7.2%2B-blue.svg)](https://github.com/PowerShell/PowerShell)
 [![GitHub Clones](https://img.shields.io/badge/dynamic/json?color=success&label=Clone&query=count&url=https://gist.githubusercontent.com/nathanthaler/f02ea07c5010c0c095cd9707622670b3/raw/clone.json&logo=github)](https://gist.githubusercontent.com/nathanthaler/f02ea07c5010c0c095cd9707622670b3/raw/clone.json)
+![Downloads](https://img.shields.io/github/downloads/vmware/powershell-script-for-vmware-cloud-foundation-vum-unrestrict/total?label=Release%20Downloads)
 [![Changelog](https://img.shields.io/badge/Changelog-Read-blue)](CHANGELOG.md)
 
 # VMware Cloud Foundation VUM Unrestrict Script
