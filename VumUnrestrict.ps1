@@ -32,35 +32,42 @@
 
 <#
     .SYNOPSIS
-    Temporarily unrestricts VMware Update Manager (VUM) services on vCenter instances in VMware Cloud Foundation environments.
+    Temporarily unrestricts VMware Update Manager (VUM) services on vCenter instances in VMware Cloud Foundation environments or standalone vCenter deployments.
 
     .DESCRIPTION
     The VumUnrestrict.ps1 script provides a streamlined workflow to temporarily enable VUM operations on
-    vCenter Server instances within VMware Cloud Foundation (VCF) deployments. This script is intended to be
-    used to enable heterogeneous hardware clusters to be upgraded to ESX 9.x before being transitioned to vLCM
-    baselines.
+    vCenter Server instances within VMware Cloud Foundation (VCF) deployments or standalone vCenter instances.
+    This script is intended to be used to enable heterogeneous hardware clusters to be upgraded to ESX 9.x
+    before being transitioned to vLCM baselines.
+
+    The script supports two deployment modes:
+    1. VCF Mode: Connects to SDDC Manager and automatically discovers all workload domain vCenter instances.
+    2. vCenter Mode: Connects directly to a single vCenter Server instance without requiring SDDC Manager.
 
     The script performs the following operations:
-    1. Connects to SDDC Manager using interactive credential prompts.
-    2. Automatically retrieves and connects to all workload domain vCenter instances.
-    3. Validates vCenter version compatibility (vCenter 9.0 or later required).
-    4. Executes VUM unrestrict tasks on compatible vCenter instances.
-    5. Provides detailed status reporting in both console and log formats.
-    6. Automatically disconnects from all connections upon completion.
+    1. Determines deployment mode (VCF or vCenter) via parameter or interactive prompt.
+    2. Connects to SDDC Manager (VCF mode) or directly to vCenter (vCenter mode) using interactive credential prompts.
+    3. Automatically retrieves and connects to all workload domain vCenter instances (VCF mode) or connects to the specified vCenter (vCenter mode).
+    4. Validates vCenter version compatibility (vCenter 9.0 or later required).
+    5. Executes VUM unrestrict tasks on compatible vCenter instances.
+    6. Provides detailed status reporting in both console and log formats.
+    7. Automatically disconnects from all connections upon completion.
 
     Key Features:
     - Interactive credential collection with secure password handling.
-    - Support for both management and isolated SSO domains.
+    - Support for both VCF deployments and standalone vCenter instances.
+    - Support for both management and isolated SSO domains (VCF mode).
     - Comprehensive error handling and logging.
     - JSON-formatted results logging for automation integration.
     - Version compatibility checking and validation.
     - Progress indication during long-running operations.
+    - Command-line mode selection to bypass interactive prompts.
 
     Important Notes:
     - VUM services will be automatically re-restricted after a vCenter LCM service restart.
-    - The script requires VCF.PowerCLI 9.0 or later.
+    - The script requires VCF.PowerCLI 9.0 or later (VCF mode) or VMware.PowerCLI (vCenter mode).
     - PowerShell 7.2 or later is required.
-    - The SDDC Manager user must have ADMIN role permissions.
+    - The SDDC Manager user must have ADMIN role permissions (VCF mode only).
     - PowerCLI must be configured for multiple server connections.
 
     .PARAMETER LogLevel
@@ -74,14 +81,34 @@
 
     Default value: INFO
 
+    .PARAMETER Mode
+    Specifies the deployment mode. Valid values are:
+    - VCF: Connect via SDDC Manager and discover all workload domain vCenter instances (default behavior).
+    - vCenter: Connect directly to a single vCenter Server instance without SDDC Manager.
+
+    If not specified, the script will prompt the user interactively to select the deployment mode.
+
     .PARAMETER version
     Displays the script version information and exits.
 
     .EXAMPLE
     ./VumUnrestrict.ps1
 
-    Runs the script with default INFO logging level. Prompts for SDDC Manager credentials,
-    connects to all vCenter instances, unrestricts VUM services, and displays a summary table.
+    Runs the script with default INFO logging level. Prompts for deployment mode selection, then prompts for
+    SDDC Manager credentials (VCF mode) or vCenter credentials (vCenter mode), connects to vCenter instances,
+    unrestricts VUM services, and displays a summary table.
+
+    .EXAMPLE
+    ./VumUnrestrict.ps1 -Mode VCF
+
+    Runs the script in VCF mode, bypassing the deployment mode prompt. Connects to SDDC Manager and all
+    workload domain vCenter instances.
+
+    .EXAMPLE
+    ./VumUnrestrict.ps1 -Mode vCenter
+
+    Runs the script in vCenter mode, bypassing the deployment mode prompt. Connects directly to a single
+    vCenter Server instance.
 
     .EXAMPLE
     ./VumUnrestrict.ps1 -LogLevel DEBUG
@@ -107,8 +134,8 @@
     File Name      : VumUnrestrict.ps1
     Author         : Broadcom
     Prerequisite   : VCF.PowerCLI 9.0 or later, PowerShell 7.2 or later
-    Version        : 1.0.0.1
-    Last Modified  : 2025-12-31
+    Version        : 1.0.0.2
+    Last Modified  : 2026-01-08
 
     .LINK
     https://github.com/vmware/powershell-script-for-vmware-cloud-foundation-vum-unrestrict
@@ -119,6 +146,7 @@
 #
 Param (
     [Parameter (Mandatory = $false)] [ValidateSet("DEBUG", "INFO", "ADVISORY", "WARNING", "EXCEPTION", "ERROR")] [String]$LogLevel = "INFO",
+    [Parameter (Mandatory = $false)] [ValidateSet("VCF", "vCenter")] [String]$Mode,
     [Parameter (Mandatory = $false)] [ValidateNotNullOrEmpty()] [Switch]$Version
 )
 # Initialize exit codes early so they're available to all functions.
@@ -197,10 +225,13 @@ Function Exit-WithCode {
     )
 
     if ($Message) {
-        if ($ExitCode -eq 0) {
-            Write-LogMessage -Type INFO -Message $Message
-        } else {
-            Write-LogMessage -Type ERROR -Message $Message
+        switch ($ExitCode) {
+            0 {
+                Write-LogMessage -Type INFO -Message $Message
+            }
+            Default {
+                Write-LogMessage -Type ERROR -Message $Message
+            }
         }
     }
 
@@ -299,7 +330,7 @@ Function Write-LogMessage {
         [Parameter(Mandatory = $false)] [ValidateNotNullOrEmpty()] [Switch]$PrependNewLine,
         [Parameter(Mandatory = $false)] [ValidateNotNullOrEmpty()] [Switch]$SuppressOutputToFile,
         [Parameter(Mandatory = $false)] [ValidateNotNullOrEmpty()] [Switch]$SuppressOutputToScreen,
-        [Parameter(Mandatory = $false)] [ValidateSet("INFO", "ERROR", "WARNING", "EXCEPTION", "ADVISORY", "DEBUG")] [String]$Type = "INFO"
+        [Parameter(Mandatory = $false)] [ValidateSet("ADVISORY", "DEBUG", "ERROR", "EXCEPTION", "INFO", "WARNING")] [String]$Type = "INFO"
     )
 
     # Define color mapping for different message types.
@@ -315,7 +346,7 @@ Function Write-LogMessage {
     # Get the appropriate color for the message type.
     $messageColor = $msgTypeToColor.$Type
 
-    # Create timestamp for log file entries (MM-dd-yyyy_HH:mm:ss format)
+    # Create timestamp for log file entries (MM-dd-yyyy_HH:mm:ss format).
     $timeStamp = Get-Date -Format "MM-dd-yyyy_HH:mm:ss"
 
     # Determine if message should be displayed based on log level threshold.
@@ -383,7 +414,7 @@ Function New-LogFile {
         [Parameter(Mandatory = $false)] [ValidateNotNullOrEmpty()] [String]$Prefix = "VumUnrestrict"
     )
 
-    # Generate timestamp for daily log file naming (yyyy-MM-dd format)
+    # Generate timestamp for daily log file naming (yyyy-MM-dd format).
     $fileTimeStamp = Get-Date -Format "yyyy-MM-dd"
 
     # Set script-scoped variables for log directory and file paths.
@@ -577,16 +608,6 @@ Function Get-Preconditions {
         }
         # Check for presence of VCF PowerCLI without VMware PowerCLI.
         { $vcfPowerCliVersion -and -not $vmwarePowerCliVersion } {
-            if ([version]$vcfPowerCliVersion -lt [version]$minimumVcfPowerCliVersion) {
-                Exit-WithCode -ExitCode $Script:ExitCodes.PRECONDITION_ERROR -Message "VCF.PowerCLI version $vcfPowerCliVersion discovered. This script requires VCF.PowerCLI $minimumVcfPowerCliVersion or later. Please upgrade VCF.PowerCLI."
-            }
-        }
-        # Check for presence of both VMware PowerCLI and VCF PowerCLI.
-        { $vmwarePowerCliVersion -and $vcfPowerCliVersion } {
-            Exit-WithCode -ExitCode $Script:ExitCodes.PRECONDITION_ERROR -Message "VMware.PowerCLI version $vmwarePowerCliVersion discovered alongside VCF.PowerCLI version $vcfPowerCliVersion. Please remove VMware.PowerCLI before continuing as the two modules conflict."
-        }
-        # Check for presence of VCF PowerCLI without VMware PowerCLI.
-        { $vcfPowerCliVersion -and -not $vmwarePowerCliVersion } {
             # Validate minimum VCF PowerCLI version.
             if ([version]$vcfPowerCliVersion -lt [version]$minimumVcfPowerCliVersion) {
                 Exit-WithCode -ExitCode $Script:ExitCodes.PRECONDITION_ERROR -Message "VCF.PowerCLI version $vcfPowerCliVersion discovered. This script requires VCF.PowerCLI $minimumVcfPowerCliVersion or later. Please upgrade VCF.PowerCLI."
@@ -597,10 +618,13 @@ Function Get-Preconditions {
     try {
         $response = Get-PowerCLIConfiguration | Where-Object -property DefaultVIServerMode -eq "Single"
     } catch [Exception] {
-        if ($_.Exception.Message -match "is not recognized as a name of a cmdlet") {
-            Exit-WithCode -ExitCode $Script:ExitCodes.PRECONDITION_ERROR -Message "Cannot find Get-PowerCLIConfiguration. You may need to reinstall PowerCLI."
-        } else {
-            Exit-WithCode -ExitCode $Script:ExitCodes.GENERAL_ERROR -Message "ERROR: $($_.Exception.Message)"
+        switch -Wildcard ($_.Exception.Message) {
+            "*is not recognized as a name of a cmdlet*" {
+                Exit-WithCode -ExitCode $Script:ExitCodes.PRECONDITION_ERROR -Message "Cannot find Get-PowerCLIConfiguration. You may need to reinstall PowerCLI."
+            }
+            Default {
+                Exit-WithCode -ExitCode $Script:ExitCodes.GENERAL_ERROR -Message "ERROR: $($_.Exception.Message)"
+            }
         }
     }
 
@@ -797,7 +821,7 @@ Function Write-ConnectionError {
         appropriate guidance for resolution.
 
         Supported error patterns include:
-        - Authentication failures (IDENTITY_UNAUTHORIZED_ENTITY)
+        - Authentication failures (IDENTITY_UNAUTHORIZED_ENTITY, incorrect username/password)
         - DNS resolution failures
         - Invalid server responses
         - SSL/TLS connection errors
@@ -848,7 +872,17 @@ Function Write-ConnectionError {
                 Write-LogMessage -Type ERROR -Message "Failed to connect to $ConnectionType `"$ServerName`". Authentication failed."
             }
         }
-        "nodename nor servname provided" {
+        "incorrect user name or password" {
+            if ($UserName) {
+                Write-LogMessage -Type ERROR -Message "Incorrect username or password entered for $ConnectionType `"$ServerName`"."
+            } else {
+                Write-LogMessage -Type ERROR -Message "Incorrect username or password entered for $ConnectionType `"$ServerName`"."
+            }
+        }
+        "Invalid URI|hostname could not be parsed" {
+            Write-LogMessage -Type ERROR -Message "Invalid $ConnectionType FQDN `"$ServerName`". Please check that the FQDN is correct and does not contain leading or trailing spaces."
+        }
+        "nodename nor servname provided, or not known" {
             Write-LogMessage -Type ERROR -Message "Cannot resolve $ConnectionType `"$ServerName`". If this is a valid $ConnectionType FQDN, please check your DNS settings."
         }
         "The requested URL <code>/v1/tokens</code> was not found on this Server" {
@@ -872,7 +906,15 @@ Function Write-ConnectionError {
         }
         Default {
             if ($ErrorMessage) {
-                Write-LogMessage -Type ERROR -Message "Connection error: $ErrorMessage"
+                # Filter out cmdlet names and timestamps from error messages for cleaner output.
+                $cleanErrorMessage = $ErrorMessage -replace '\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}:\d{2}\s+(AM|PM)\s+', '' -replace 'Connect-VcfSddcManagerServer\s*', '' -replace 'Connect-VIServer\s*', '' -replace '^\s+', '' -replace '\s+$', ''
+                if ($cleanErrorMessage -and $cleanErrorMessage -ne $ErrorMessage) {
+                    Write-LogMessage -Type ERROR -Message "Failed to connect to $ConnectionType `"$ServerName`": $cleanErrorMessage"
+                } elseif ($cleanErrorMessage) {
+                    Write-LogMessage -Type ERROR -Message "Failed to connect to $ConnectionType `"$ServerName`". Please check your connection details."
+                } else {
+                    Write-LogMessage -Type ERROR -Message "Failed to connect to $ConnectionType `"$ServerName`". Please check your connection details."
+                }
             }
         }
     }
@@ -933,8 +975,10 @@ Function Disconnect-Vcenter {
             Disconnect-VIServer -Server $Vcenter -Force -Confirm:$false -ErrorAction Stop | Out-Null
             if ($Silence) {
                 Write-LogMessage -Type DEBUG -Message "Successfully disconnected from vCenter `"$Vcenter`"."
+                Write-Host ""
             } else {
                 Write-LogMessage -Type INFO -Message "Successfully disconnected from vCenter `"$Vcenter`"."
+                Write-Host ""
             }
         } catch {
             Write-LogMessage -Type ERROR -Message "Failed to disconnect from vCenter `"$Vcenter`": $($_.Exception.Message)"
@@ -1063,8 +1107,8 @@ Function Connect-SddcManager {
     Write-LogMessage -Type INFO -AppendNewLine -Message "Please enter your connection details at the prompt."
 
     # Collect SDDC Manager FQDN with validation.
-    $Script:sddcManagerFqdn = Get-InteractiveInput -PromptMessage "Enter your SDDC Manager FQDN"
-    $Script:sddcManagerUserName = Get-InteractiveInput -PromptMessage "Enter your SDDC Manager SSO username"
+    $Script:sddcManagerFqdn = (Get-InteractiveInput -PromptMessage "Enter your SDDC Manager FQDN").Trim()
+    $Script:sddcManagerUserName = (Get-InteractiveInput -PromptMessage "Enter your SDDC Manager SSO username").Trim()
     $Script:sddcManagerPassword = Get-InteractiveInput -PromptMessage "Enter your SDDC Manager SSO password" -AsSecureString
     Write-Host ""
 
@@ -1076,15 +1120,42 @@ Function Connect-SddcManager {
 
     # Handle connection errors using centralized error handler.
     if ($errorMessage) {
-        # ErrorVariable returns an array, extract the error message properly
+        # ErrorVariable returns an array, extract the error message properly.
+        # Check both Exception.Message and Exception.InnerException.Message for connection errors.
         $errorText = if ($errorMessage -is [System.Collections.ArrayList] -or ($errorMessage.Count -gt 1)) {
-            $errorMessage[0].Exception.Message
+            if ($errorMessage[0].Exception.InnerException.Message) {
+                $errorMessage[0].Exception.InnerException.Message
+            } elseif ($errorMessage[0].Exception.Message) {
+                $errorMessage[0].Exception.Message
+            } elseif ($errorMessage[0].ToString() -notmatch '^\d{1,2}/\d{1,2}/\d{4}') {
+                # Only use ToString() if it doesn't look like a timestamp/cmdlet name.
+                $errorMessage[0].ToString()
+            } else {
+                $null
+            }
         } elseif ($errorMessage.Exception) {
-            $errorMessage.Exception.Message
-        } else {
+            if ($errorMessage.Exception.InnerException.Message) {
+                $errorMessage.Exception.InnerException.Message
+            } elseif ($errorMessage.Exception.Message) {
+                $errorMessage.Exception.Message
+            } elseif ($errorMessage.Exception.ToString() -notmatch '^\d{1,2}/\d{1,2}/\d{4}') {
+                # Only use ToString() if it doesn't look like a timestamp/cmdlet name.
+                $errorMessage.Exception.ToString()
+            } else {
+                $null
+            }
+        } elseif ($errorMessage.ToString() -notmatch '^\d{1,2}/\d{1,2}/\d{4}') {
+            # Only use ToString() if it doesn't look like a timestamp/cmdlet name
             $errorMessage.ToString()
+        } else {
+            $null
         }
-        Write-ConnectionError -ErrorMessage $errorText -ConnectionType "SDDC Manager" -ServerName $Script:sddcManagerFqdn -UserName $Script:sddcManagerUserName
+        # Only call Write-ConnectionError if we have a valid error message.
+        if ($errorText) {
+            Write-ConnectionError -ErrorMessage $errorText -ConnectionType "SDDC Manager" -ServerName $Script:sddcManagerFqdn -UserName $Script:sddcManagerUserName
+        } else {
+            Write-LogMessage -Type ERROR -Message "Failed to connect to SDDC Manager `"$Script:sddcManagerFqdn`". Please check your connection details."
+        }
     }
 
     # Handle connection failure scenarios and provide recovery options.
@@ -1209,6 +1280,168 @@ Function Disconnect-SddcManager {
         }
     }
 }
+Function Get-VcfDeploymentMode {
+    <#
+        .SYNOPSIS
+        Prompts the user to determine if this is a VCF deployment or standalone vCenter.
+
+        .DESCRIPTION
+        The Get-VcfDeploymentMode function presents an interactive prompt asking the user whether
+        this is a VMware Cloud Foundation (VCF) deployment. The default answer is "Yes" (VCF mode).
+        The function returns a string value indicating the selected mode: "VCF" or "vCenter".
+
+        .OUTPUTS
+        System.String
+        Returns "VCF" if the user selects Yes, or "vCenter" if the user selects No.
+
+        .EXAMPLE
+        $mode = Get-VcfDeploymentMode
+        if ($mode -eq "VCF") {
+            Connect-SddcManager
+        } else {
+            Connect-VcenterDirect
+        }
+    #>
+
+    Write-LogMessage -Type DEBUG -Message "Entered Get-VcfDeploymentMode function..."
+    Write-Host ""
+    $decision = New-ChoiceMenu -Question "Is this a VCF Deployment?" -DefaultAnswer "Yes"
+
+    if ($decision -eq 0) {
+        return "VCF"
+    } else {
+        return "vCenter"
+    }
+}
+Function Connect-VcenterDirect {
+    <#
+        .SYNOPSIS
+        Establishes a direct connection to a single vCenter Server instance.
+
+        .DESCRIPTION
+        The Connect-VcenterDirect function provides interactive credential collection and connection
+        to a standalone vCenter Server instance without requiring SDDC Manager. The function performs
+        the following operations:
+
+        1. Prompts interactively for vCenter FQDN, username, and password
+        2. Securely handles password input using SecureString
+        3. Attempts connection using Connect-VIServer cmdlet
+        4. Validates vCenter version compatibility (9.0 or later required)
+        5. Analyzes and reports connection errors with user-friendly messages
+        6. Offers retry option on connection failure
+        7. Logs connection success with version information
+
+        The function uses centralized error handling through Write-ConnectionError to provide
+        consistent, actionable error messages for various failure scenarios.
+
+        .EXAMPLE
+        Connect-VcenterDirect
+        Prompts interactively for vCenter credentials and establishes connection.
+
+        .OUTPUTS
+        None. This function sets $Global:DefaultVIServers on success.
+    #>
+
+    Write-LogMessage -Type DEBUG -Message "Entered Connect-VcenterDirect function..."
+
+    # Interactive credential collection with validation loops.
+    # Ensure all required credentials are provided before proceeding.
+    Write-Host ""
+    Write-LogMessage -Type INFO -AppendNewLine -Message "Please enter your vCenter connection details at the prompt."
+
+    # Collect vCenter FQDN with validation.
+    $vcenterFqdn = (Get-InteractiveInput -PromptMessage "Enter your vCenter FQDN").Trim()
+    $vcenterUserName = (Get-InteractiveInput -PromptMessage "Enter your vCenter SSO username").Trim()
+    $vcenterPassword = Get-InteractiveInput -PromptMessage "Enter your vCenter SSO password" -AsSecureString
+
+    # Create credential object.
+    $vcenterCredential = New-Object System.Management.Automation.PSCredential($vcenterUserName, $vcenterPassword)
+
+    # Log connection attempt (to file only for clean console output).
+    Write-LogMessage -Type DEBUG -Message "Attempting to connect to vCenter `"$vcenterFqdn`" with user `"$vcenterUserName`"..."
+
+    # Attempt connection with error suppression to handle errors gracefully. Write any errors to $errorMessage for parsing.
+    $connectedToVcenter = Connect-VIServer -Server $vcenterFqdn -Credential $vcenterCredential -ErrorAction SilentlyContinue -ErrorVariable errorMessage
+
+    # Handle connection errors using centralized error handler.
+    if ($errorMessage) {
+        # ErrorVariable returns an array, extract the error message properly.
+        # Check both Exception.Message and Exception.InnerException.Message for vCenter connection errors.
+        $errorText = if ($errorMessage -is [System.Collections.ArrayList] -or ($errorMessage.Count -gt 1)) {
+            if ($errorMessage[0].Exception.InnerException.Message) {
+                $errorMessage[0].Exception.InnerException.Message
+            } else {
+                $errorMessage[0].Exception.Message
+            }
+        } elseif ($errorMessage.Exception) {
+            if ($errorMessage.Exception.InnerException.Message) {
+                $errorMessage.Exception.InnerException.Message
+            } else {
+                $errorMessage.Exception.Message
+            }
+        } else {
+            $errorMessage.ToString()
+        }
+        # Only call Write-ConnectionError if we have a valid error message.
+        if ($errorText) {
+            Write-ConnectionError -ErrorMessage $errorText -ConnectionType "vCenter Server" -ServerName $vcenterFqdn -UserName $vcenterUserName
+        } else {
+            Write-LogMessage -Type ERROR -Message "Failed to connect to vCenter `"$vcenterFqdn`". Please check your connection details."
+        }
+    }
+
+    # Handle connection failure scenarios and provide recovery options.
+    if (-not $connectedToVcenter) {
+        # For interactive mode, offer to retry with new credentials.
+        $decision = New-ChoiceMenu -Question "Would you like to re-enter your vCenter FQDN and user credentials?" -DefaultAnswer "Yes"
+
+        # Handle user's decision on retry.
+        if ($decision -eq 0) {
+            # User chose to retry - recursively call function for new attempt.
+            Connect-VcenterDirect
+        } else {
+            # User chose not to retry - exit the connection attempt.
+            return
+        }
+    } else {
+        # Connection successful - validate version and log success.
+        $vcenterVersion = Get-VcenterVersion -Vcenter $vcenterFqdn
+        if ([Version]$vcenterVersion -lt [Version]$minimumVcenterRelease) {
+            Write-LogMessage -Type INFO -PrependNewLine -Message "Disconnecting from incompatible vCenter `"$vcenterFqdn`"."
+            Disconnect-Vcenter -Vcenter $vcenterFqdn -Silence
+            Exit-WithCode -ExitCode $Script:ExitCodes.VERSION_ERROR -Message "vCenter version $vcenterVersion detected. Version $minimumVcenterRelease or later is required."
+        }
+
+        # Initialize vcenterCapabilities array if not already initialized.
+        if (-not $Script:vcenterCapabilities) {
+            $Script:vcenterCapabilities = @()
+
+            $Script:vcenterCapabilities += [pscustomobject]@{
+                'vcenterFqdn'      = "vCenter"
+                'unRestrictStatus' = "VUM Services"
+                'message'          = "Message"
+            }
+
+            $Script:vcenterCapabilities += [pscustomobject]@{
+                'vcenterFqdn'      = "-------"
+                'unRestrictStatus' = "------------"
+                'message'          = "-------"
+            }
+        }
+
+        # Add entry for this vCenter.
+        $Script:vcenterCapabilities += [pscustomobject]@{
+            'vcenterFqdn'      = $vcenterFqdn
+            'unRestrictStatus' = "STATUS_NOT_UPDATED"
+            'message'          = "NO_MESSAGE"
+        }
+
+        # Connection successful - log success and version information.
+        Write-LogMessage -Type INFO -AppendNewLine -Message "Successfully connected to vCenter `"$vcenterFqdn`" as `"$vcenterUserName`"."
+        Write-LogMessage -Type DEBUG -Message "vCenter `"$vcenterFqdn`" version is $vcenterVersion."
+        Get-VcenterVersion -Vcenter $vcenterFqdn -Silence
+    }
+}
 Function Connect-Vcenter {
     <#
         .SYNOPSIS
@@ -1319,12 +1552,12 @@ Function Connect-Vcenter {
 
     # Connect to each Workload Domain's vCenter using MGMT or isolated SSO credentials.
     foreach ($workloadDomainName in $workloadDomainNames) {
-        # Initialize disconnectedVcenter flag for each iteration
+        # Initialize disconnectedVcenter flag for each iteration.
         $disconnectedVcenter = $false
 
         $vcenter = $($workloadDomainName.vCenters.fqdn)
 
-        # Validate vCenter FQDN is not empty
+        # Validate vCenter FQDN is not empty.
         if ([string]::IsNullOrEmpty($vcenter)) {
             Write-LogMessage -Type WARNING -Message "Skipping workload domain `"$($workloadDomainName.Name)`" - vCenter FQDN not found."
             continue
@@ -1435,7 +1668,6 @@ Function Set-VumCapability {
         }
     }
 
-    Write-Host ""
     Write-LogMessage -Type INFO -AppendNewLine -Message "Looking for heterogeneous-hardware clusters in the connected vCenter(s)..."
 
     foreach ($vcenter in ($Global:DefaultVIServers | Where-Object { $_.IsConnected -eq $true }).Name) {
@@ -1444,7 +1676,7 @@ Function Set-VumCapability {
         # Get vCenter server object once to avoid repeated lookups.
         $vcenterServerObject = $Global:DefaultVIServers | Where-Object name -eq $vcenter
 
-        # Add entry for this vCenter if it doesn't already exist in the array
+        # Add entry for this vCenter if it doesn't already exist in the array.
         $existingEntry = $Script:vcenterCapabilities | Where-Object { $_.vcenterFqdn -eq $vcenter }
         if (-not $existingEntry) {
             $Script:vcenterCapabilities += [pscustomobject]@{
@@ -1460,7 +1692,7 @@ Function Set-VumCapability {
                 Write-LogMessage -Type ERROR -AppendNewLine -Message "Task ID not returned for vCenter `"$vcenter`"."
                 $updatedStatus = "Restricted"
                 $updatedMessage = "Task creation failed - no task ID returned."
-                # Update capabilities array and continue to next vCenter
+                # Update capabilities array and continue to next vCenter.
                 $entry = $Script:vcenterCapabilities | Where-Object { $_.vcenterFqdn -eq $vcenter } | Select-Object -First 1
                 if ($entry) {
                     $entry.unRestrictStatus = $updatedStatus
@@ -1475,7 +1707,7 @@ Function Set-VumCapability {
                 Write-LogMessage -Type ERROR -AppendNewLine -Message "Encountered error: $($_.Exception.Message)."
                 $updatedStatus = "Restricted"
                 $updatedMessage = "Task creation failed: $($_.Exception.Message)"
-                # Update capabilities array and continue to next vCenter
+                # Update capabilities array and continue to next vCenter.
                 $entry = $Script:vcenterCapabilities | Where-Object { $_.vcenterFqdn -eq $vcenter } | Select-Object -First 1
                 if ($entry) {
                     $entry.unRestrictStatus = $updatedStatus
@@ -1515,22 +1747,29 @@ Function Set-VumCapability {
             continue
         }
 
-        # PowerShell switch statements are case-insensitive by default
+        # PowerShell switch statements are case-insensitive by default.
         switch ($taskState) {
             "FAILED" {
                 $updatedStatus = "Failed"
                 $updatedMessage = "Task failed (see logs for details)."
             }
             "SUCCEEDED" {
-                # Result is an array, find the vum_operations_enabled entry
+                # Result is an array, find the vum_operations_enabled entry.
                 $vumEnabledResult = $taskResult.Result | Where-Object { $_.Key -eq 'vum_operations_enabled' }
                 if ($vumEnabledResult -and $vumEnabledResult.Value -eq $true) {
                     $updatedStatus = "Unrestricted"
                     $updatedMessage = "Heterogeneous-hardware clusters(s) located."
-                    # Check WLD status.
-                    $workloadDomain = ((Invoke-VcfGetDomains).Elements | Where-Object { $_.Vcenters.fqdn -eq $vcenter })
-                    if ($workloadDomain.Status -eq "ERROR") {
-                        Write-LogMessage -Type WARNING -AppendNewLine -Message "Workload Domain `"$($workloadDomain.Name)`" has an error status. This must be resolved before converting the clusters in vCenter `"$vcenter`" to vLCM management."
+                    # Check WLD status only if connected to SDDC Manager (VCF mode).
+                    if ($Global:defaultSddcManagerConnections.IsConnected) {
+                        try {
+                            $workloadDomain = ((Invoke-VcfGetDomains).Elements | Where-Object { $_.Vcenters.fqdn -eq $vcenter })
+                            if ($workloadDomain.Status -eq "ERROR") {
+                                Write-LogMessage -Type WARNING -AppendNewLine -Message "Workload Domain `"$($workloadDomain.Name)`" has an error status. This must be resolved before converting the clusters in vCenter `"$vcenter`" to vLCM management."
+                            }
+                        } catch {
+                            # Silently ignore if Invoke-VcfGetDomains fails (e.g., in vCenter mode).
+                            Write-LogMessage -Type DEBUG -Message "Skipping workload domain status check for vCenter `"$vcenter`" (not in VCF mode or SDDC Manager unavailable)."
+                        }
                     }
                 } else {
                     $updatedStatus = "Restricted"
@@ -1550,13 +1789,13 @@ Function Set-VumCapability {
             }
         }
 
-        # Update capabilities array using more efficient lookup
+        # Update capabilities array using more efficient lookup.
         $entry = $Script:vcenterCapabilities | Where-Object { $_.vcenterFqdn -eq $vcenter } | Select-Object -First 1
         if ($entry) {
             $entry.unRestrictStatus = $updatedStatus
             $entry.message = $updatedMessage
         } else {
-            # Entry not found, add it
+            # Entry not found, add it.
             $Script:vcenterCapabilities += [pscustomobject]@{
                 'vcenterFqdn'      = $vcenter
                 'unRestrictStatus' = $updatedStatus
@@ -1570,7 +1809,7 @@ Function Set-VumCapability {
         $processTimer.Stop()
     }
 
-    # Log the vCenter capabilities data (excluding header and separator rows) to file in JSON format
+    # Log the vCenter capabilities data (excluding header and separator rows) to file in JSON format.
     $vcenterData = $Script:vcenterCapabilities | Where-Object { $_.vcenterFqdn -ne "vCenter" -and $_.vcenterFqdn -ne "-------" }
     if ($vcenterData) {
         $jsonOutput = $vcenterData | ConvertTo-Json -Depth 2
@@ -1587,7 +1826,7 @@ Function Set-VumCapability {
 $ConfirmPreference = "None"
 $Global:ProgressPreference = 'Continue'
 $PSStyle.Progress.Style = "`e[93;1m"
-$scriptVersion = '1.0.0.1'
+$scriptVersion = '1.0.0.2'
 $psVersionMinVersion = '7.2'
 $minimumVcenterRelease = '9.0'
 $minimumVcfRelease = '9.0'
@@ -1604,6 +1843,16 @@ if ($Version) {
     break
 }
 
+# Determine deployment mode if not provided via parameter.
+if (-not $Mode) {
+    $Mode = Get-VcfDeploymentMode
+}
+
+# Normalize mode to uppercase for comparison.
+if ($Mode) {
+    $Mode = $Mode.ToUpper()
+}
+
 # Disconnect from existing connections if they exist.
 if ($Global:defaultSddcManagerConnections.IsConnected) {
     Write-LogMessage -Type INFO -Message "Detected existing SDDC Manager connection. Disconnecting..."
@@ -1616,9 +1865,27 @@ if ($Global:DefaultVIServers.Count -ne 0) {
     Disconnect-Vcenter -AllVcenters
 }
 
-# Connect to SDDC Manager and vCenter, then set VUM capability, and disconnect from both.
-Connect-SddcManager
-Connect-Vcenter
-Set-VumCapability
-Disconnect-SddcManager -NoPrompt
-Disconnect-Vcenter -AllVcenters
+# Connect based on deployment mode, then set VUM capability, and disconnect.
+switch ($Mode) {
+    "VCF" {
+        # Disconnect from existing SDDC Manager and vCenter connections if they exist.
+        Disconnect-SddcManager -NoPrompt -Silence
+        # Disconnect from all vCenter connections if they exist.
+        Disconnect-Vcenter -AllVcenters -Silence
+        Connect-SddcManager
+        Connect-Vcenter
+        Set-VumCapability
+        Disconnect-SddcManager -NoPrompt
+        Disconnect-Vcenter -AllVcenters
+    }
+    "VCENTER" {
+        # Disconnect from all vCenter connections if they exist.
+        Disconnect-Vcenter -AllVcenters -Silence
+        Connect-VcenterDirect
+        Set-VumCapability
+        Disconnect-Vcenter -AllVcenters
+    }
+    Default {
+        Exit-WithCode -ExitCode $Script:ExitCodes.PARAMETER_ERROR -Message "Invalid mode specified: $Mode. Valid values are 'VCF' or 'vCenter'."
+    }
+}
