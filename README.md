@@ -1,12 +1,13 @@
 [![License](https://img.shields.io/badge/License-Broadcom-green.svg)](LICENSE.md)
 [![PowerShell](https://img.shields.io/badge/PowerShell-7.2%2B-blue.svg)](https://github.com/PowerShell/PowerShell)
+[![PowerCLI](https://img.shields.io/badge/VCF.PowerClI-9.0%2B-red.svg)](https://www.powershellgallery.com/packages/)
 [![GitHub Clones](https://img.shields.io/badge/dynamic/json?color=success&label=Clone&query=count&url=https://gist.githubusercontent.com/nathanthaler/f02ea07c5010c0c095cd9707622670b3/raw/clone.json&logo=github)](https://gist.githubusercontent.com/nathanthaler/f02ea07c5010c0c095cd9707622670b3/raw/clone.json)
 ![Downloads](https://img.shields.io/github/downloads/vmware/powershell-script-for-vmware-cloud-foundation-vum-unrestrict/total?label=Release%20Downloads)
 [![Changelog](https://img.shields.io/badge/Changelog-Read-blue)](CHANGELOG.md)
 
 # VMware Cloud Foundation VUM Unrestrict Script
 
-Temporarily allow vCenter VMware Update Manager (VUM) to enable the transition of heterogeneous hardware to vLCM Image Management.
+Temporarily allow vCenter VMware Update Manager (VUM) to enable the transition of heterogeneous hardware to vLCM Image Management.  VMware Update Manager will remain enabled until the service or the vCenter appliance is restarted.
 
 ## Overview
 
@@ -17,6 +18,8 @@ The ESX upgrade portion of VMware Cloud Foundation 9.x upgrade process has a pre
 However, vLCM images for heterogeneous hardware-based clusters are only supported in ESX 9, which means the transition must occur after the ESX 9 upgrade. In order to upgrade heterogeneous-hardware clusters to ESX 9 using VUM, a special process is required to temporarily allow the service.
 
 The vCenter Update Manager service can be unrestricted via a Broadcom-provided PowerShell script or vCenter APIs, but only if one or more heterogeneous-hardware clusters are present.
+
+Once vCenter Update Manager has been unrestricted, please upgrade the heterogeneous cluster to ESX 9 using vCenter Update Manager and then [transition the cluster to vLCM images](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/deployment/upgrading-cloud-foundation/upgrade-the-management-domain-to-vmware-cloud-foundation-5-2/vlcm-baseline-to-vlcm-image-cluster-transition-.html).
 
 ## Modes
 
@@ -201,7 +204,7 @@ Enter your vCenter SSO password: ********
 5. Select API endpoint "esx".
 6. Select the correct vCenter 9.0 or later endpoint.
 7. Expand "settings/inventory".
-8. Expand `/api/esx/settings/inventory?action=update-vum-capability&vmw-task=true`.
+8. Execute `/api/esx/settings/inventory?action=update-vum-capability&vmw-task=true`.
 9. You receive a task ID back, copy this down (for example `"52b3cef6-00df-033a-9778-f243a1e96e97:com.vmware.esx.settings.inventory"`). If you do not get a task ID, please verify the vCenter in question was indeed running vCenter 9.0 or later.
 10. Change your API endpoint to "cis".
 11. Expand "tasks".
